@@ -2,10 +2,21 @@ const express = require('express');
 const http = require('http');
 const socketIO = require('socket.io');
 const path = require('path');
+const cors = require('cors');
 
 const app = express();
 const server = http.createServer(app);
-const io = socketIO(server);
+
+// Enable CORS
+app.use(cors({ origin: '*' }));
+
+const io = socketIO(server, {
+  cors: {
+    origin: "*",
+    methods: ["GET", "POST"]
+  },
+  transports: ["polling"]  // Use polling for Vercel compatibility
+});
 
 // Serve static files
 app.use(express.static(path.join(__dirname, 'public')));
@@ -26,28 +37,32 @@ app.get('/candidate', (req, res) => {
 // Socket.io connection handling
 io.on('connection', (socket) => {
   console.log('A user connected:', socket.id);
-  
-  // Handle joining room
+
   socket.on('join-room', (roomId, userId) => {
     socket.join(roomId);
     socket.to(roomId).emit('user-connected', userId);
     
     socket.on('disconnect', () => {
       socket.to(roomId).emit('user-disconnected', userId);
+      console.log(`User ${userId} disconnected from room ${roomId}`);
     });
   });
-  
-  // Handle signaling for WebRTC
+
+  // WebRTC signaling
   socket.on('offer', (roomId, offer) => {
     socket.to(roomId).emit('offer', offer, socket.id);
   });
-  
+
   socket.on('answer', (roomId, answer) => {
     socket.to(roomId).emit('answer', answer, socket.id);
   });
-  
+
   socket.on('ice-candidate', (roomId, candidate) => {
     socket.to(roomId).emit('ice-candidate', candidate, socket.id);
+  });
+
+  socket.on('error', (error) => {
+    console.error('Socket.IO error:', error);
   });
 });
 

@@ -3,32 +3,227 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Candidate View - InterviewVoIP</title>
-    <!-- Use the same CSS as interviewer.html -->
+    <title>Candidate Interview - InterviewVoIP</title>
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
     <style>
-        /* Copy the same CSS from interviewer.html */
+        :root {
+            --primary-color: #0066cc;
+            --danger-color: #cc0000;
+            --success-color: #28a745;
+            --background-color: #f0f2f5;
+            --text-color: #333;
+            --border-radius: 8px;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background-color: var(--background-color);
+            color: var(--text-color);
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .header {
+            background-color: white;
+            padding: 20px;
+            border-radius: var(--border-radius);
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .room-info {
+            text-align: center;
+        }
+
+        .room-id {
+            font-size: 1.2em;
+            color: var(--primary-color);
+            font-weight: bold;
+            padding: 8px 16px;
+            background: rgba(0, 102, 204, 0.1);
+            border-radius: 4px;
+            display: inline-block;
+            margin-top: 10px;
+        }
+
+        .video-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(480px, 1fr));
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .video-wrapper {
+            position: relative;
+            background: #000;
+            border-radius: var(--border-radius);
+            overflow: hidden;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+
+        .video-wrapper::before {
+            content: "";
+            display: block;
+            padding-top: 75%;
+        }
+
+        video {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .video-label {
+            position: absolute;
+            bottom: 10px;
+            left: 10px;
+            background: rgba(0, 0, 0, 0.6);
+            color: white;
+            padding: 8px 12px;
+            border-radius: 4px;
+            font-size: 0.9em;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .controls {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .control-button {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 12px 24px;
+            border: none;
+            border-radius: var(--border-radius);
+            background-color: var(--primary-color);
+            color: white;
+            font-size: 1em;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .control-button:hover {
+            background-color: #0052a3;
+            transform: translateY(-1px);
+        }
+
+        .control-button.disabled {
+            background-color: var(--danger-color);
+        }
+
+        .control-button .material-icons {
+            font-size: 20px;
+        }
+
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 0.9em;
+            background: rgba(0,0,0,0.1);
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background-color: var(--success-color);
+        }
+
+        .status-dot.offline {
+            background-color: var(--danger-color);
+        }
+
+        #errorMessage {
+            background-color: #fff3cd;
+            color: #856404;
+            padding: 12px;
+            border-radius: var(--border-radius);
+            margin-bottom: 20px;
+            text-align: center;
+            display: none;
+        }
+
+        .connection-status {
+            text-align: center;
+            margin-bottom: 20px;
+            font-size: 0.9em;
+            color: #666;
+        }
+
+        @media (max-width: 768px) {
+            .video-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .controls {
+                flex-wrap: wrap;
+            }
+
+            .control-button {
+                width: calc(50% - 10px);
+            }
+        }
     </style>
 </head>
 <body>
     <div class="container">
-        <div class="room-info">
-            <h2>Interview Room</h2>
-            <p>Room ID: <span class="room-id" id="roomIdDisplay"></span></p>
+        <div class="header">
+            <div class="room-info">
+                <h1>Interview Session</h1>
+                <div class="status-indicator">
+                    <span class="status-dot" id="connectionDot"></span>
+                    <span id="connectionStatus">Connecting...</span>
+                </div>
+                <div class="room-id">
+                    Room ID: <span id="roomIdDisplay"></span>
+                </div>
+            </div>
         </div>
-        
+
         <div id="errorMessage"></div>
-        
+
+        <div class="connection-status" id="iceConnectionStatus"></div>
+
         <div class="video-grid">
             <div class="video-wrapper">
                 <video id="localVideo" autoplay playsinline muted></video>
-                <div class="video-label">You (Candidate)</div>
+                <div class="video-label">
+                    <span class="material-icons">person</span>
+                    You (Candidate)
+                </div>
             </div>
             <div class="video-wrapper">
                 <video id="remoteVideo" autoplay playsinline></video>
-                <div class="video-label">Interviewer</div>
+                <div class="video-label">
+                    <span class="material-icons">supervisor_account</span>
+                    Interviewer
+                </div>
             </div>
         </div>
-        
+
         <div class="controls">
             <button class="control-button" id="toggleVideo">
                 <span class="material-icons">videocam</span>
@@ -38,47 +233,110 @@
                 <span class="material-icons">mic</span>
                 Microphone
             </button>
+            <button class="control-button" id="toggleFullscreen">
+                <span class="material-icons">fullscreen</span>
+                Fullscreen
+            </button>
+            <button class="control-button" id="settings">
+                <span class="material-icons">settings</span>
+                Settings
+            </button>
         </div>
     </div>
 
     <script src="/socket.io/socket.io.js"></script>
     <script src="/js/webrtc-client.js"></script>
     <script>
-        const urlParams = new URLSearchParams(window.location.search);
-        const roomId = urlParams.get('room');
-        
-        if (!roomId) {
-            const errorMessage = document.getElementById('errorMessage');
-            errorMessage.textContent = 'Error: Room ID is required. Please use a valid room link.';
-            errorMessage.style.display = 'block';
-        } else {
-            const userId = 'candidate-' + Math.random().toString(36).substr(2, 9);
+        document.addEventListener('DOMContentLoaded', () => {
+            const urlParams = new URLSearchParams(window.location.search);
+            const roomId = urlParams.get('room');
+            
+            if (!roomId) {
+                const errorMessage = document.getElementById('errorMessage');
+                errorMessage.textContent = 'Error: Room ID is required. Please use a valid interview link.';
+                errorMessage.style.display = 'block';
+                return;
+            }
+
+            // Display room ID
             document.getElementById('roomIdDisplay').textContent = roomId;
 
-            // Initialize WebRTC
+            // Initialize WebRTC with timestamp
+            const userId = `candidate-${Date.now()}`;
             const socket = io();
             const webrtc = new WebRTCClient(socket, roomId, userId, 'candidate');
 
-// Initialize media stream with error handling
-webrtc.initialize().catch(error => {
-    const errorMessage = document.getElementById('errorMessage');
-    errorMessage.textContent = 'Error: ' + error.message;
-    errorMessage.style.display = 'block';
-});
+            // Update connection status
+            function updateConnectionStatus(status, isConnected) {
+                const dot = document.getElementById('connectionDot');
+                const statusText = document.getElementById('connectionStatus');
+                dot.classList.toggle('offline', !isConnected);
+                statusText.textContent = status;
+            }
 
-// Control button event listeners
-document.getElementById('toggleVideo').addEventListener('click', function() {
-    const enabled = webrtc.toggleVideo();
-    this.classList.toggle('disabled', !enabled);
-    this.innerHTML = `<span class="material-icons">${enabled ? 'videocam' : 'videocam_off'}</span> Camera`;
-});
+            // Initialize media stream with error handling
+            webrtc.initialize().catch(error => {
+                const errorMessage = document.getElementById('errorMessage');
+                errorMessage.textContent = `Error: ${error.message}`;
+                errorMessage.style.display = 'block';
+                updateConnectionStatus('Media Error', false);
+            });
 
-document.getElementById('toggleAudio').addEventListener('click', function() {
-    const enabled = webrtc.toggleAudio();
-    this.classList.toggle('disabled', !enabled);
-    this.innerHTML = `<span class="material-icons">${enabled ? 'mic' : 'mic_off'}</span> Microphone`;
-});
-}
-</script>
+            // Control button event listeners
+            document.getElementById('toggleVideo').addEventListener('click', function() {
+                const enabled = webrtc.toggleVideo();
+                this.classList.toggle('disabled', !enabled);
+                this.innerHTML = `
+                    <span class="material-icons">${enabled ? 'videocam' : 'videocam_off'}</span>
+                    Camera
+                `;
+            });
+
+            document.getElementById('toggleAudio').addEventListener('click', function() {
+                const enabled = webrtc.toggleAudio();
+                this.classList.toggle('disabled', !enabled);
+                this.innerHTML = `
+                    <span class="material-icons">${enabled ? 'mic' : 'mic_off'}</span>
+                    Microphone
+                `;
+            });
+
+            // Fullscreen toggle
+            document.getElementById('toggleFullscreen').addEventListener('click', () => {
+                const container = document.querySelector('.container');
+                if (!document.fullscreenElement) {
+                    container.requestFullscreen().catch(err => {
+                        console.error(`Error attempting to enable fullscreen: ${err.message}`);
+                    });
+                } else {
+                    document.exitFullscreen();
+                }
+            });
+
+            // Settings button
+            document.getElementById('settings').addEventListener('click', () => {
+                // Implement settings modal or dropdown here
+                alert('Settings functionality coming soon!');
+            });
+
+            // Connection status updates
+            socket.on('connect', () => {
+                updateConnectionStatus('Connected', true);
+            });
+
+            socket.on('disconnect', () => {
+                updateConnectionStatus('Disconnected', false);
+            });
+
+            // ICE connection status
+            webrtc.onIceConnectionStateChange = (state) => {
+                const iceStatus = document.getElementById('iceConnectionStatus');
+                iceStatus.textContent = `Connection Status: ${state}`;
+            };
+
+            // Last updated timestamp
+            console.log('Last updated: 2025-03-20 17:13:27 UTC');
+        });
+    </script>
 </body>
 </html>

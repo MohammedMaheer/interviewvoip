@@ -1,269 +1,84 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Candidate View</title>
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      margin: 0;
-      padding: 20px;
-    }
-    .container {
-      max-width: 1200px;
-      margin: 0 auto;
-    }
-    .join-form {
-      background-color: #f1f1f1;
-      padding: 20px;
-      border-radius: 8px;
-      margin-bottom: 20px;
-    }
-    .form-group {
-      margin-bottom: 15px;
-    }
-    label {
-      display: block;
-      margin-bottom: 5px;
-    }
-    input {
-      width: 100%;
-      padding: 8px;
-      border: 1px solid #ddd;
-      border-radius: 4px;
-      box-sizing: border-box;
-    }
-    .video-container {
-      display: flex;
-      justify-content: space-between;
-      margin-top: 20px;
-    }
-    .video-box {
-      width: 48%;
-      position: relative;
-    }
-    video {
-      width: 100%;
-      background-color: #222;
-      border-radius: 8px;
-    }
-    .controls {
-      margin-top: 20px;
-      display: flex;
-      justify-content: center;
-      gap: 15px;
-    }
-    button {
-      padding: 10px 15px;
-      border: none;
-      border-radius: 4px;
-      cursor: pointer;
-      font-size: 14px;
-    }
-    .primary {
-      background-color: #4CAF50;
-      color: white;
-    }
-    .warning {
-      background-color: #f44336;
-      color: white;
-    }
-    .secondary {
-      background-color: #607d8b;
-      color: white;
-    }
-    .hidden {
-      display: none;
-    }
-    .status {
-      color: #666;
-      font-style: italic;
-    }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Candidate View - InterviewVoIP</title>
+    <!-- Use the same CSS as interviewer.html -->
+    <style>
+        /* Copy the same CSS from interviewer.html */
+    </style>
 </head>
 <body>
-  <div class="container">
-    <h1>Candidate Interview</h1>
-    
-    <div id="joinForm" class="join-form">
-      <h3>Join Interview</h3>
-      <div class="form-group">
-        <label for="roomIdInput">Enter Interview Room ID:</label>
-        <input type="text" id="roomIdInput" placeholder="Paste room ID provided by the interviewer">
-      </div>
-      <button id="joinBtn" class="primary">Join Interview</button>
-    </div>
-    
-    <div id="interviewArea" class="hidden">
-      <p class="status" id="connectionStatus">Connecting to interviewer...</p>
-      
-      <div class="video-container">
-        <div class="video-box">
-          <h3>You (Candidate)</h3>
-          <video id="localVideo" autoplay muted></video>
+    <div class="container">
+        <div class="room-info">
+            <h2>Interview Room</h2>
+            <p>Room ID: <span class="room-id" id="roomIdDisplay"></span></p>
         </div>
-        <div class="video-box">
-          <h3>Interviewer</h3>
-          <video id="remoteVideo" autoplay></video>
+        
+        <div id="errorMessage"></div>
+        
+        <div class="video-grid">
+            <div class="video-wrapper">
+                <video id="localVideo" autoplay playsinline muted></video>
+                <div class="video-label">You (Candidate)</div>
+            </div>
+            <div class="video-wrapper">
+                <video id="remoteVideo" autoplay playsinline></video>
+                <div class="video-label">Interviewer</div>
+            </div>
         </div>
-      </div>
-      
-      <div class="controls">
-        <button id="muteBtn" class="secondary">Mute</button>
-        <button id="videoToggleBtn" class="secondary">Turn Off Camera</button>
-        <button id="leaveBtn" class="warning">Leave Interview</button>
-      </div>
+        
+        <div class="controls">
+            <button class="control-button" id="toggleVideo">
+                <span class="material-icons">videocam</span>
+                Camera
+            </button>
+            <button class="control-button" id="toggleAudio">
+                <span class="material-icons">mic</span>
+                Microphone
+            </button>
+        </div>
     </div>
-  </div>
-  
-  <script src="/socket.io/socket.io.js"></script>
-  <script>
-    const socket = io();
-    let localStream;
-    let remoteStream;
-    let peerConnection;
-    let userId = Math.random().toString(36).substring(2, 15);
-    let roomId;
-    
-    // STUN servers for NAT traversal
-    const iceServers = {
-      iceServers: [
-        { urls: 'stun:stun.l.google.com:19302' },
-        { urls: 'stun:stun1.l.google.com:19302' }
-      ]
-    };
-    
-    document.getElementById('joinBtn').addEventListener('click', async () => {
-      roomId = document.getElementById('roomIdInput').value.trim();
-      
-      if (!roomId) {
-        alert('Please enter a valid Room ID to join the interview.');
-        return;
-      }
-      
-      try {
-        localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-        document.getElementById('localVideo').srcObject = localStream;
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="/js/webrtc-client.js"></script>
+    <script>
+        const urlParams = new URLSearchParams(window.location.search);
+        const roomId = urlParams.get('room');
         
-        // Hide join form and show interview area
-        document.getElementById('joinForm').classList.add('hidden');
-        document.getElementById('interviewArea').classList.remove('hidden');
-        
-        joinRoom();
-        
-        // Set up UI controls
-        document.getElementById('muteBtn').addEventListener('click', toggleMute);
-        document.getElementById('videoToggleBtn').addEventListener('click', toggleVideo);
-        document.getElementById('leaveBtn').addEventListener('click', leaveInterview);
-      } catch (error) {
-        console.error('Error accessing media devices:', error);
-        alert('Failed to access camera and microphone. Please ensure they are connected and permissions are granted.');
-      }
-    });
-    
-    function joinRoom() {
-      socket.emit('join-room', roomId, userId);
-      
-      socket.on('user-connected', (otherUserId) => {
-        document.getElementById('connectionStatus').textContent = 'Interviewer connected!';
-        createPeerConnection(otherUserId);
-      });
-      
-      socket.on('offer', async (offer, senderId) => {
-        if (!peerConnection) {
-          createPeerConnection(senderId);
-        }
-        
-        try {
-          await peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
-          const answer = await peerConnection.createAnswer();
-          await peerConnection.setLocalDescription(answer);
-          socket.emit('answer', roomId, answer);
-        } catch (error) {
-          console.error('Error handling offer:', error);
-        }
-      });
-      
-      socket.on('answer', async (answer) => {
-        try {
-          await peerConnection.setRemoteDescription(new RTCSessionDescription(answer));
-        } catch (error) {
-          console.error('Error handling answer:', error);
-        }
-      });
-      
-      socket.on('ice-candidate', async (candidate) => {
-        try {
-          if (peerConnection) {
-            await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
-          }
-        } catch (error) {
-          console.error('Error adding ice candidate:', error);
-        }
-      });
-      
-      socket.on('user-disconnected', () => {
-        document.getElementById('connectionStatus').textContent = 'Interviewer disconnected.';
-        document.getElementById('remoteVideo').srcObject = null;
-        if (peerConnection) {
-          peerConnection.close();
-          peerConnection = null;
-        }
-      });
-    }
-    
-    function createPeerConnection(otherUserId) {
-      peerConnection = new RTCPeerConnection(iceServers);
-      
-      // Add local tracks to the connection
-      localStream.getTracks().forEach(track => {
-        peerConnection.addTrack(track, localStream);
-      });
-      
-      // Handle incoming remote stream
-      peerConnection.ontrack = event => {
-        document.getElementById('remoteVideo').srcObject = event.streams[0];
-        remoteStream = event.streams[0];
-      };
-      
-      // Handle ICE candidates
-      peerConnection.onicecandidate = event => {
-        if (event.candidate) {
-          socket.emit('ice-candidate', roomId, event.candidate);
-        }
-      };
-      
-      peerConnection.onconnectionstatechange = event => {
-        if (peerConnection.connectionState === 'connected') {
-          document.getElementById('connectionStatus').textContent = 'Connected to interviewer.';
-        }
-      };
-    }
-    
-    function toggleMute() {
-      const audioTracks = localStream.getAudioTracks();
-      if (audioTracks.length === 0) return;
-      
-      const isEnabled = audioTracks[0].enabled;
-      audioTracks[0].enabled = !isEnabled;
-      document.getElementById('muteBtn').textContent = isEnabled ? 'Unmute' : 'Mute';
-    }
-    
-    function toggleVideo() {
-      const videoTracks = localStream.getVideoTracks();
-      if (videoTracks.length === 0) return;
-      
-      const isEnabled = videoTracks[0].enabled;
-      videoTracks[0].enabled = !isEnabled;
-      document.getElementById('videoToggleBtn').textContent = isEnabled ? 'Turn On Camera' : 'Turn Off Camera';
-    }
-    
-    function leaveInterview() {
-      if (confirm('Are you sure you want to leave this interview?')) {
-        window.location.href = '/';
-      }
-    }
-  </script>
+        if (!roomId) {
+            const errorMessage = document.getElementById('errorMessage');
+            errorMessage.textContent = 'Error: Room ID is required. Please use a valid room link.';
+            errorMessage.style.display = 'block';
+        } else {
+            const userId = 'candidate-' + Math.random().toString(36).substr(2, 9);
+            document.getElementById('roomIdDisplay').textContent = roomId;
+
+            // Initialize WebRTC
+            const socket = io();
+            const webrtc = new WebRTCClient(socket, roomId, userId, 'candidate');
+
+// Initialize media stream with error handling
+webrtc.initialize().catch(error => {
+    const errorMessage = document.getElementById('errorMessage');
+    errorMessage.textContent = 'Error: ' + error.message;
+    errorMessage.style.display = 'block';
+});
+
+// Control button event listeners
+document.getElementById('toggleVideo').addEventListener('click', function() {
+    const enabled = webrtc.toggleVideo();
+    this.classList.toggle('disabled', !enabled);
+    this.innerHTML = `<span class="material-icons">${enabled ? 'videocam' : 'videocam_off'}</span> Camera`;
+});
+
+document.getElementById('toggleAudio').addEventListener('click', function() {
+    const enabled = webrtc.toggleAudio();
+    this.classList.toggle('disabled', !enabled);
+    this.innerHTML = `<span class="material-icons">${enabled ? 'mic' : 'mic_off'}</span> Microphone`;
+});
+}
+</script>
 </body>
 </html>
